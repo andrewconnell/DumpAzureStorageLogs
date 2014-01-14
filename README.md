@@ -9,3 +9,5 @@ I built this app from taking some code found in Azure blogs and adding a filter 
 To run, enter the following (*all times in zulu*):
 
 `DumpAzureStorageLogs.exe blob logdump.txt "YYYY-MM-DDTHH:MMZ" "YYYY-MM-DDTHH:MMZ"`
+
+**little test of line endings issue**
