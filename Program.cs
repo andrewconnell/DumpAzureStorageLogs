@@ -6,7 +6,8 @@ using System.Configuration;
 using System.IO;
 using System.Text;
 using Microsoft.WindowsAzure;
-using Microsoft.WindowsAzure.StorageClient;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
 
 namespace DumpAzureStorageLogs {
   class Program {
@@ -33,7 +34,7 @@ namespace DumpAzureStorageLogs {
         endTimeOfSearch = DateTime.Parse(args[3]);
       }
 
-      List<CloudBlob> blobList = ListLogFiles(blobClient, args[0], startTimeOfSearch.ToUniversalTime(), endTimeOfSearch.ToUniversalTime());
+      var blobList = ListLogFiles(blobClient, args[0], startTimeOfSearch.ToUniversalTime(), endTimeOfSearch.ToUniversalTime());
       DumpLogs(blobList, args[1]);
     }
 
@@ -87,8 +88,8 @@ namespace DumpAzureStorageLogs {
     /// <param name="startTimeForSearch">Start time for the search</param>
     /// <param name="endTimeForSearch">End time for the search</param>
     /// <returns></returns>
-    static List<CloudBlob> ListLogFiles(CloudBlobClient blobClient, string serviceName, DateTime startTimeForSearch, DateTime endTimeForSearch) {
-      List<CloudBlob> selectedLogs = new List<CloudBlob>();
+    static List<CloudBlockBlob> ListLogFiles(CloudBlobClient blobClient, string serviceName, DateTime startTimeForSearch, DateTime endTimeForSearch) {
+      var selectedLogs = new List<CloudBlockBlob>();
 
       // form the prefix to search. Based on the common parts in start and end time, this prefix is formed
       string prefix = GetSearchPrefix(serviceName, startTimeForSearch, endTimeForSearch);
@@ -96,17 +97,15 @@ namespace DumpAzureStorageLogs {
       Console.WriteLine("Prefix used for log listing = {0}", prefix);
 
       // List the blobs using the prefix
-      IEnumerable<IListBlobItem> blobs = blobClient.ListBlobsWithPrefix(
+      IEnumerable<IListBlobItem> blobs = blobClient.ListBlobs(
           prefix,
-          new BlobRequestOptions() {
-            UseFlatBlobListing = true,
-            BlobListingDetails = BlobListingDetails.Metadata
-          });
+          true,    // use flat blob listing
+          BlobListingDetails.Metadata);
 
 
       // iterate through each blob and figure the start and end times in the metadata
       foreach (IListBlobItem item in blobs) {
-        CloudBlob log = item as CloudBlob;
+        var log = item as CloudBlockBlob;
         if (log != null) {
           // we will exclude the file if the file does not have log entries in the interested time range.
           DateTime startTime = DateTime.Parse(log.Metadata[LogStartTime]).ToUniversalTime();
@@ -135,7 +134,7 @@ namespace DumpAzureStorageLogs {
     /// </summary>
     /// <param name="blobList"></param>
     /// <param name="fileName"></param>
-    static void DumpLogs(List<CloudBlob> blobList, string fileName) {
+    static void DumpLogs(List<CloudBlockBlob> blobList, string fileName) {
 
       if (blobList.Count > 0) {
         Console.WriteLine("Dumping log entries from {0} files to '{1}'", blobList.Count, fileName);
@@ -150,9 +149,9 @@ namespace DumpAzureStorageLogs {
             "Request url; Object Key; RequestId; Operation #; User IP; Request Version; Request Header Size; Request Packet Size; Response Header Size;");
         writer.WriteLine(
             "Response Packet Size; Request Content Length; Request MD5; Server MD5; Etag returned; LMT; Condition Used; User Agent; Referrer; Client Request Id");
-        foreach (CloudBlob blob in blobList) {
-          using (Stream stream = blob.OpenRead()) {
-            using (StreamReader reader = new StreamReader(stream)) {
+        foreach (var blob in blobList) {
+          using (var stream = blob.OpenRead()) {
+            using (var reader = new StreamReader(stream)) {
               string logEntry;
               while ((logEntry = reader.ReadLine()) != null) {
                 // if it's the RSS request or the episode request...
